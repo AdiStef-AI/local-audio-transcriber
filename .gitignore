@@ -1,0 +1,12 @@
+# Environment and downloads (rebuilt by the scripts)
+venv/
+models/
+wheels/
+__pycache__/
+*.pyc
+# Never commit recordings or transcripts
+*.mp3
+*.m4a
+*.wav
+*.mp4
+*.transcript.txt
