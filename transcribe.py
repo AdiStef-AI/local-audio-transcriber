@@ -56,6 +56,38 @@ def hms(sec):
     return f"{h}h {m:02d}m {r:02d}s" if h else f"{m}m {r:02d}s"
 
 
+def setup_cuda_dlls():
+    """Make the CUDA libraries installed by pip (nvidia-cublas-cu12, nvidia-cudnn-cu12) findable."""
+    for base in sys.path:
+        root = os.path.join(base, "nvidia")
+        if not os.path.isdir(root):
+            continue
+        for sub in os.listdir(root):
+            b = os.path.join(root, sub, "bin")
+            if os.path.isdir(b):
+                os.environ["PATH"] = b + os.pathsep + os.environ.get("PATH", "")
+                try:
+                    os.add_dll_directory(b)
+                except (OSError, AttributeError):
+                    pass
+
+
+def make_whisper(name, device, lang):
+    """Return (model, device_used). 'auto' tries the GPU and quietly falls back to CPU."""
+    if device in ("auto", "cuda"):
+        try:
+            setup_cuda_dlls()
+            m = WhisperModel(name, device="cuda", compute_type="float16", download_root=MODELS)
+            # Loading can succeed while a missing DLL only fails on first use, so warm up now.
+            list(m.transcribe(np.zeros(16000, np.float32), language=lang)[0])
+            return m, "cuda"
+        except Exception as e:  # no GPU, no driver, missing cuDNN/cuBLAS...
+            if device == "cuda":
+                sys.exit(f"GPU requested but not usable: {e}")
+            print(f"No usable GPU ({str(e).splitlines()[0][:90]}); using CPU.")
+    return WhisperModel(name, device="cpu", compute_type="int8", download_root=MODELS), "cpu"
+
+
 def to_wav(src, dst):
     subprocess.run(
         [imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-loglevel", "error",
@@ -113,6 +145,7 @@ def main():
     ap.add_argument("--diarize", action="store_true")
     ap.add_argument("--num-speakers", type=int, default=0)
     ap.add_argument("--speakers", default="")
+    ap.add_argument("--device", default="auto", choices=["auto", "cpu", "cuda"])
     ap.add_argument("--embedding", default=DEFAULT_EMBEDDING, choices=list(EMBEDDINGS))
     a = ap.parse_args()
     out = a.out or os.path.splitext(a.audio)[0] + ".transcript.txt"
@@ -135,7 +168,7 @@ def main():
     turns = diarize(samples, n_expected, a.embedding) if do_dia else []
     t_diarized = time.time()
 
-    model = WhisperModel(a.model, device="cpu", compute_type="int8", download_root=MODELS)
+    model, device_used = make_whisper(a.model, a.device, a.lang)
     segs, info = model.transcribe(samples, language=a.lang, vad_filter=True, beam_size=5,
                                  word_timestamps=bool(turns))
     total = info.duration
@@ -196,7 +229,7 @@ def main():
     print(f" Input file       : {os.path.basename(a.audio)} ({os.path.getsize(a.audio) / 1048576:.1f} MB)")
     print(f" Audio length     : {hms(total)}")
     print(f" Speech detected  : {hms(spoken)} ({(spoken / total * 100) if total else 0:.0f}% of the audio)")
-    print(f" Whisper model    : {a.model}   language: {a.lang}")
+    print(f" Whisper model    : {a.model}   language: {a.lang}   device: {device_used.upper()}")
     print(f" Transcript       : {len(lines)} lines, {n_words} words")
     print(f" Output file      : {out}")
     if turns:

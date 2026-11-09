@@ -57,6 +57,7 @@ param(
     [Parameter(Position = 1)][string]$OutputFile,
     [ValidateSet('tiny', 'base', 'small', 'medium', 'large-v3')][string]$Model = 'small',
     [string]$Lang = 'en',
+    [ValidateSet('auto', 'cpu', 'cuda')][string]$Device = 'auto',
     [switch]$Diarize,
     [int]$NumSpeakers = 0,
     [string]$Speakers = '',
@@ -94,6 +95,10 @@ ARGUMENTS
                  eres2net separated 3 voices on a test where the others merged
                  two of them. If it merges or splits voices wrongly on your
                  audio, try -Embedding titanet-small.
+  -Device        auto (default) | cpu | cuda
+                 auto uses an NVIDIA GPU for Whisper when one works, otherwise
+                 the CPU. cuda forces the GPU and stops with an error if it
+                 cannot be used. Speaker detection always runs on the CPU.
   -h, -Help      Show this help.
 
 EXAMPLES
@@ -131,6 +136,12 @@ LIMITS OF SPEAKER LABELS
   - Lines are split at each change of speaker, word by word. Boundaries can be
     off by a word or two, and a short interjection may be absorbed.
   - Without -NumSpeakers the tool may find too many or too few voices.
+
+GPU (NVIDIA)
+  Needs a recent NVIDIA driver (check with: nvidia-smi). No CUDA Toolkit is
+  needed: the CUDA libraries come from pip (nvidia-cublas-cu12,
+  nvidia-cudnn-cu12) and are installed automatically when nvidia-smi exists.
+  The summary at the end shows "device: CUDA" or "device: CPU".
 
 PORTING TO ANOTHER MACHINE
   Copy the whole tools folder. Everything lives there: scripts, models
@@ -172,6 +183,9 @@ $venv = Join-Path $here 'venv'
 $py = Join-Path $venv 'Scripts\python.exe'
 $wheels = Join-Path $here 'wheels'
 $packages = @('faster-whisper', 'imageio-ffmpeg', 'numpy', 'sherpa-onnx')
+# NVIDIA GPU present (driver installed)? Then also install the CUDA libraries Whisper needs.
+$hasGpu = ($Device -ne 'cpu') -and [bool](Get-Command nvidia-smi -ErrorAction SilentlyContinue)
+if ($hasGpu) { $packages += @('nvidia-cublas-cu12', 'nvidia-cudnn-cu12') }
 
 function Install-Packages {
     if (Test-Path $wheels) {
@@ -195,14 +209,16 @@ if (-not (Test-Path $py)) {
 } else {
     # Existing venv from an older version may lack sherpa-onnx.
     & $py -c "import sherpa_onnx" 2>$null
-    if ($LASTEXITCODE -ne 0) { Write-Host 'Adding missing packages...' -ForegroundColor Cyan; Install-Packages }
+    $missing = ($LASTEXITCODE -ne 0)
+    if ($hasGpu) { & $py -c "import nvidia.cudnn, nvidia.cublas" 2>$null; if ($LASTEXITCODE -ne 0) { $missing = $true } }
+    if ($missing) { Write-Host 'Adding missing packages...' -ForegroundColor Cyan; Install-Packages }
 }
 
 $argsList = @($InputFile, $OutputFile, '--model', $Model, '--lang', $Lang)
 if ($Diarize) { $argsList += '--diarize' }
 if ($NumSpeakers -gt 0) { $argsList += @('--num-speakers', $NumSpeakers) }
 if ($Speakers) { $argsList += @('--speakers', $Speakers) }
-$argsList += @('--embedding', $Embedding)
+$argsList += @('--embedding', $Embedding, '--device', $Device)
 
 Write-Host "Transcribing: $InputFile (model: $Model)" -ForegroundColor Cyan
 & $py (Join-Path $here 'transcribe.py') @argsList

@@ -10,6 +10,7 @@ Built on [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (OpenAI's o
 | `run_mp3-to-txt.ps1` | Main command. Creates a Python venv on first run, then transcribes. |
 | `transcribe.py` | The engine called by the wrapper. |
 | `mp3-clip.ps1` | Cuts a time range out of an audio file without re-encoding. |
+| `SETUP_NEW_PC.md` | Clean-PC setup, including GPU. |
 | `docs/NOTES.md` | Model comparison, accuracy findings, speed numbers. |
 
 ## Requirements
@@ -35,6 +36,9 @@ If PowerShell blocks scripts: `powershell -ExecutionPolicy Bypass -File .\run_mp
 
 ## Offline install
 Run `pip download faster-whisper imageio-ffmpeg numpy sherpa-onnx -d wheels` once; the wrapper then installs from `wheels/` with no internet. Wheels are tied to the Python version and OS. Whisper models go in `models/` (the first run downloads them there).
+
+## GPU (NVIDIA)
+`-Device auto` (default) uses an NVIDIA GPU for Whisper when one works and falls back to the CPU otherwise. See `SETUP_NEW_PC.md` for a step-by-step setup on a clean Windows 11 machine. The GPU path has not been tested on real GPU hardware yet.
 
 ## Privacy
 Everything runs locally. Do not commit recordings or transcripts (the `.gitignore` blocks common audio formats and `*.transcript.txt`).
