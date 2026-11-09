@@ -7,7 +7,7 @@ The GPU only speeds up the Whisper transcription step. Speaker detection always 
 |---|---|---|---|
 | 1 | **NVIDIA graphics driver** (recent) | nvidia.com/drivers | Check it worked: open PowerShell and run `nvidia-smi`. It should print your GPU. |
 | 2 | **Python 3.14, 64-bit** | python.org/downloads/windows | Tick **"Add python.exe to PATH"** in the installer. It must be 3.14: the bundled packages are built for it. |
-| 3 | **Microsoft Visual C++ Redistributable 2015-2022, x64** | aka.ms/vs/17/release/vc_redist.x64.exe | Needed by the speech libraries. Often already present, harmless to install. |
+| 3 | **Microsoft Visual C++ Redistributable 2015-2022, x64** | aka.ms/vc14/vc_redist.x64.exe | Needed by the speech libraries. If the installer offers only **Repair** and **Uninstall**, it is already installed: click Close and move on. Do not uninstall it. |
 
 You do **not** need: the CUDA Toolkit, a manual cuDNN install, ffmpeg, Git, or internet access (when you use the full zip with `wheels/` and `models/`).
 
